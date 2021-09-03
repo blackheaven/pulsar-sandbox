@@ -25,4 +25,7 @@ let
     };
   };
   
-in pkgs.haskell.packages.${compiler}.callPackage ./apache-pulsar.nix { }
+in {
+  inherit pkgs;
+  pulsar-sandbox = pkgs.haskell.packages.${compiler}.callPackage ./apache-pulsar.nix { };
+}

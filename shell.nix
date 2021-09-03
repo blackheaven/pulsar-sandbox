@@ -1,2 +1,5 @@
-{ compiler ? "ghc8106" }:
-(import ./default.nix { inherit compiler; }).env
+let
+  project = import ./default.nix {};
+  pkgs = project.pkgs;
+  shell = project.pulsar-sandbox.env;
+in shell.overrideAttrs (attrs: { buildInputs = attrs.buildInputs ++ [ pkgs.ghc]; })
