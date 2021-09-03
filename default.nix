@@ -1,31 +1,28 @@
+{ compiler ? "ghc8106" }:
+
 let
-  sources = {
-    haskellNix = builtins.fetchTarball "https://github.com/input-output-hk/haskell.nix/archive/master.tar.gz";
-  };
-  # If ./nix/sources.nix file is not found run:
-  #   niv init
-  #   niv add input-output-hk/haskell.nix -n haskellNix
+  githubTarball = owner: repo: rev:
+    builtins.fetchTarball { url = "https://github.com/${owner}/${repo}/archive/${rev}.tar.gz"; };
 
-  # Fetch the haskell.nix commit we have pinned with Niv
-  haskellNix = import sources.haskellNix {};
-  # If haskellNix is not found run:
-  #   niv add input-output-hk/haskell.nix -n haskellNix
+  nixpkgsSrc = commit:
+    githubTarball "NixOS" "nixpkgs" commit;
 
-  # Import nixpkgs and pass the haskell.nix provided nixpkgsArgs
-  pkgs = import
-    # haskell.nix provides access to the nixpkgs pins which are used by our CI,
-    # hence you will be more likely to get cache hits when using these.
-    # But you can also just use your own, e.g. '<nixpkgs>'.
-    haskellNix.sources.nixpkgs-2009
-    # These arguments passed to nixpkgs, include some patches and also
-    # the haskell.nix functionality itself as an overlay.
-    haskellNix.nixpkgsArgs;
-in pkgs.haskell-nix.project {
-  # 'cleanGit' cleans a source directory based on the files known by git
-  src = pkgs.haskell-nix.haskellLib.cleanGit {
-    name = "pulsar-sandbox";
-    src = ./.;
+  pkgs = import (nixpkgsSrc "503209808cd613daed238e21e7a18ffcbeacebe3") { inherit config; };
+
+  supernovaSrc = githubTarball "hetchr" "supernova" "351903754a40a0d75d660e7e3336b801608bf3dc";
+  
+  config = {
+    packageOverrides = pkgs: rec {
+      haskell = pkgs.haskell // {
+        packages = pkgs.haskell.packages // {
+          ${compiler} = pkgs.haskell.packages."${compiler}".override {
+            overrides = self: super: {
+              supernova = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.doJailbreak (pkgs.haskell.lib.unmarkBroken (super.callCabal2nix "supernova" "${supernovaSrc}/lib" {})));
+            };
+          };
+        };
+      };
+    };
   };
-  # Specify the GHC version to use.
-  compiler-nix-name = "ghc8106"; # Not required for `stack.yaml` based projects.
-}
+  
+in pkgs.haskell.packages.${compiler}.callPackage ./apache-pulsar.nix { }
